@@ -1,0 +1,265 @@
+---
+title: "HW2"
+author: "Sai Akhil Rayapudi"
+date: "2023-02-07"
+output: pdf_document
+---
+
+**Problem 1**\
+```{r warning=FALSE, message=FALSE}
+library(readr)
+library(stringr)
+library(tidyverse)
+dataf <- 
+read_csv("/Users/saiakhil/Desktop/DS Coursework/Sem 1/IDMP/HW2/googleplaystore.csv",
+         show_col_types = FALSE)
+#data reading
+str(dataf)
+unique(dataf$Installs) #review data
+which(dataf$Installs == 0) #finding rows in the data frame with installs as zero
+dataf[9149, ]
+
+df1 <- dataf[-9149,]
+#dropping this row(9149) as the number of installs is 0 and it doesn't have any relevant 
+#data in the other columns too.
+
+head(df1)
+df1[9149,] 
+#reviewing the data in this specific row
+
+df2 <- df1[,!names(df1) %in% c("Last Updated","Current Ver","Android Ver")]
+#Dropping columns Last Updated, Current Ver and Android Ver as they don't provide any 
+#meaningful correlation to the user's install trends.
+
+str(df2)
+
+df3 <- df2[,-10]
+#Category and Genres columns give the same data, so dropping Genres column to make
+#the data frame simple.
+
+summary(df3$Rating)
+x <- df3[is.na(df3$Rating), ] #finding null values
+
+library(dplyr)
+table(x$Category)
+#One interesting observation from here is that every app in the entertainment 
+#category has a rating which is not the case with every other category in the data
+
+y <- df3 %>% 
+  group_by(Category) %>% 
+  mutate_at(vars(Rating), 
+            ~replace_na(., 
+                        mean(., na.rm = TRUE)))
+#Replaced null values in the column Rating based on the mean of the values of 
+#its own category
+
+unique(y$Rating)
+z <- ungroup(y)
+
+z$Rating <- round(z$Rating ,digit=1)
+#Rounding off mean to 1 digit after the decimal point to get proper data
+
+```
+**Observations:**\
+Citing data source- Google Play Store Apps. (2019, February 3). Kaggle. Retrieved February 12, 2023, from https://www.kaggle.com/datasets/lava18/google-play-store-apps \
+I have taken this data from kaggle, it describes the data of 10,000 playstore apps \
+
+Variables: \
+App - App Name \
+Category - Category of the app \
+Rating - Rating of the app shared by user \
+Reviews - Number of reviews shared by the user \
+Size - Total size of the App \
+Installs - Number of times the app was installed by the users \
+Type - Type of the app i.e., Paid/Free \
+Price - Price of the app if it is of Paid type \
+Content Rating - Viewer discretion rating of the App content
+
+Preprocessing steps: \
+1. Data cleaning by removing null values \
+2. Removing rows that are contributing no important insights \
+3. Finding and dropping features that are irrelevant \
+4. Imputing values with mean to make the data consistent
+
+**Problem 2**\
+```{r fig.width=15, warning=FALSE, message=FALSE}
+#Graph 1 Category vs Installs
+
+z$Installs <- gsub(",","",z$Installs)
+#Removing commas in the data by replacing with a blank space
+unique(z$Installs)
+
+library(stringr)
+z$Installs <- str_sub(z$Installs, end = -2)
+unique(z$Installs)
+#Removing the '+' symbol at the end to make the data more meaningful for plots
+
+class(z$Installs)
+z$Installs <- as.numeric(z$Installs)
+#Converting the column from string to numeric to plot the data
+class(z$Installs)
+
+
+cat_installs <- z %>% group_by(Category) %>% 
+  summarise(sum_installs=sum(Installs),
+            .groups = 'drop') %>% as.data.frame()
+
+#Plot Category vs Installs
+ggplot(data=cat_installs, aes(x=Category, y=sum_installs)) +
+  geom_bar(stat="identity")+
+  geom_text(aes(label = sum_installs), vjust = -0.2,size=2.25)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Plot between category and the number of app installs in that category")
+
+```
+
+**Observations:**\
+Apps in the 'GAME' category has the most number of installs, suggesting high preference among the users \
+Similarly apps in the 'EVENTS' has the least number of installs suggesting lower user base
+
+```{r fig.width=15, warning=FALSE, message=FALSE}
+#Graph 2 Avg Rating based on Category
+df_new <- z
+df_new
+
+data_new1 <- df_new %>% group_by(Category) %>% 
+  summarise(mean_rating=mean(Rating),
+            .groups = 'drop') %>%
+  as.data.frame()
+#Grouping the 'Rating' column based on the 'Category' column
+
+str(data_new1)
+#data_new1 is the data frame containing average rating based on category
+
+#Plot mean_Rating vs Category
+ggplot(data=data_new1, aes(x=Category, y=mean_rating)) +
+   geom_point(color="blue")+
+   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+   ggtitle("Plot between Category and the mean of rating in each category")
+
+data_new2 <- df_new %>% group_by(Category) %>% 
+  as.data.frame()
+#data grouped by 'Category' column
+str(data_new2)
+
+#Plot Rating vs Category
+ggplot(data = data_new2, mapping = aes(x=Category, y=Rating)) +
+geom_boxplot()+
+theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+ggtitle("Box Plot between Category and rating in each category")
+
+```
+
+**Observations:**\
+From the above graph, we can observe that rating is high for the apps in the 'Events' Category. \
+An interesting correlation from the first 2 graphs is that 'Events' is the one with least number of installs but the users who have used them have rated them highly
+
+```{r fig.width=15, warning=FALSE, message=FALSE}
+#Graph3 Total App installs based on category for paid apps
+data_new3 <- data_new2
+data_new3 <- data_new3[data_new3$Type == "Paid", ]
+str(data_new3)
+#Filtering based on the value of Type column which is Paid
+
+paid_installs <- data_new3 %>% group_by(Category) %>% 
+  summarise(new_installs=sum(Installs),
+            .groups = 'drop') %>% as.data.frame()
+#Grouping the data by category and finding the sum of installs for each category
+
+#Plot Category vs Installs for paid apps
+ggplot(data=paid_installs, aes(x=Category, y=new_installs)) +
+  geom_bar(stat="identity")+
+  geom_text(aes(label = new_installs), vjust = -0.2,size=2.5)+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Plot between Category and app installs in each category for paid apps")
+```
+
+**Observations:**\
+From the above graph we can see that most of the paid apps installed belong to the 'Family' category. \
+On a contrast, paid apps of 'Events' category has been installed only once.
+
+**Problem 3**\
+```{r}
+library(readr)
+dataf <- 
+read_tsv("/Users/saiakhil/Desktop/DS Coursework/Sem 1/IDMP/HW2/NCAA-D1-APR-2003-14/DS0001/26801-0001-Data.tsv"
+         ,show_col_types = FALSE)
+#loading data frame
+library(dplyr) #loading dplyr library for select function
+dataff <- select(dataf,SCL_UNITID:ACADEMIC_YEAR,starts_with("APR_RATE_")) #selecting columns required
+str(dataff)
+library("reshape2") #loading reshape library for the melt function
+dataff1 <- subset(dataff,select= -ACADEMIC_YEAR) 
+#dropping ACADEMIC YEAR column to rearrange the data set
+colnames(dataff1) <-c("SCL_UNITID","SCL_NAME","SPORT_CODE","SPORT_NAME","2014",
+        "2013","2012","2011","2010","2009","2008","2007","2006","2005","2004")
+#changing the column names of data set for the melt function to work properly 
+dataff2 <- melt(dataff1,id.vars=c("SCL_UNITID","SCL_NAME","SPORT_CODE","SPORT_NAME"),
+                variable.name = "YEAR", value.name="APR")
+#melt function to transform the data frame to wide to long
+dataff2<-dataff2[!(dataff2$APR<0),]
+#Removing rows containing APR's with negative values
+str(dataff2)
+
+#Plot year vs APR
+library(ggplot2)
+ggplot(data = dataff2, mapping = aes(x=YEAR, y=APR)) +
+  geom_boxplot()+
+  coord_cartesian(ylim = c(550,1000))+
+  ggtitle("Trend of APR's over the given time frame of 2004-2014 ")
+```
+**Observations:**\
+From the graph, we can see that the APR values follow an increasing trend from the year 2004 to 2014.
+
+**Problem 4**\
+```{r fig.width=12, warning=FALSE, message=FALSE}
+dataff3 <- dataff2[dataff2$SPORT_CODE != 38, ]
+#Removing SPORT_CODE of 38 as it is a mised gender sport.
+# Men 1-18 and Women 19-37
+
+unique(dataff3$SPORT_CODE)
+
+dataff3$GENDER <- ifelse (dataff3$SPORT_CODE %in% c(1:18),"Men","Women")
+#Adding a column called Gender and assigning values based on the SPORT code
+str(dataff3)
+
+#Plot of year vs APR split out by GENDER
+library(ggplot2)
+ggplot(data = dataff3, mapping = aes(x=YEAR, y=APR,color=GENDER)) +
+  geom_boxplot()+
+  facet_grid(~GENDER)+
+  coord_cartesian(ylim = c(550,1000))+
+  ggtitle("Trend of APR's over the given time frame of 2004-2014 broken out by gender")
+```
+**Observations:**\
+We can see that the APR's of Women are on a higher side compared with the APR's of Men for the same year. \
+APR's in general follow an increasing trend when observed over the timeframe from 2004 to 2014. 
+
+**Problem 5**\
+```{r fig.width=10,fig.height=10, warning=FALSE, message=FALSE}
+
+pattern <- "Men's." 
+replacement <- ""
+dataff3$SPORT_NAME <- gsub(pattern,replacement,dataff3$SPORT_NAME)
+str(dataff3)
+#Removing Men's prefix from the sport name
+unique(dataff3$YEAR)
+
+pattern1 <- "Women's." 
+dataff3$SPORT_NAME <- gsub(pattern1,replacement,dataff3$SPORT_NAME)
+str(dataff3)
+#Removing Women's prefix from the sport name
+
+#Plot APR vs SPORT split by gender
+library(ggplot2)
+ggplot(data = dataff3, mapping = aes(x=APR, y=SPORT_NAME,color=GENDER)) +
+  geom_boxplot()+
+  coord_cartesian(xlim = c(550,1000))+
+  ggtitle("Plot between APR and SPORT_NAME split by gender")
+```
+
+**Observations:**\
+After observing the distribution of APR's for Men's and Women's teams for each sport, \
+we can see that APR's are same for Men and Women in below sports namely: \
+Tennis, Skiing, Gymnastics, Golf, Fencing, Cross Country \
+Apart from this, APR's are close for Men and Women in Volleyball and Ice Hockey
